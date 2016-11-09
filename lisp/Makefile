@@ -1,9 +1,13 @@
 -include ../config.mk
 include ../default.mk
 
+######################################################################
+
 .PHONY: magit-version.el install
 
 all: lisp
+
+# Build order ########################################################
 
 git-commit.elc:
 magit-utils.elc:
@@ -34,7 +38,11 @@ magit-ediff.elc:	magit.elc
 magit-extras.elc:	magit.elc
 git-rebase.elc:		magit.elc
 
-lisp: $(ELCS) magit-version.el magit-autoloads.el
+# Build ##############################################################
+
+lisp:       $(ELCS) loaddefs versionlib
+loaddefs:   $(PKG)-autoloads.el
+versionlib: $(PKG)-version.el
 
 %.elc: %.el
 	@printf "Compiling $<\n"
@@ -48,46 +56,68 @@ lisp: $(ELCS) magit-version.el magit-autoloads.el
 	                    (apply 'message* f a)))))" \
 	-f batch-byte-compile $<
 
-magit-version.el:
+$(PKG)-autoloads.el: $(ELS)
 	@printf "Generating $@\n"
-	@printf ";;; magit-version.el --- the Magit version you are using\n\n" > $@
-	@printf "(setq magit-version \""$(VERSION)"\")\n\n" >> $@
-	@printf "(provide 'magit-version)\n\n" >> $@
-	@printf ";; Local Variables:\n" >> $@
-	@printf ";; version-control: never\n" >> $@
-	@printf ";; no-byte-compile: t\n" >> $@
-	@printf ";; no-update-autoloads: t\n" >> $@
-	@printf ";; coding: utf-8\n" >> $@
-	@printf ";; End:\n" >> $@
-	@printf ";;; magit-version.el ends here\n" >> $@
-
-magit-autoloads.el: $(ELS)
-	@printf "Generating $@\n"
-	@$(RM) $@
-	@printf ";;; $@ --- automatically extracted autoloads\n" >> $@
-	@printf ";;\n" >> $@
-	@printf ";;; Code:\n" >> $@ >> $@
-	@printf "(add-to-list 'load-path (directory-file-name (or (file-name-directory #$$) (car load-path))))\n" >> $@
-	@printf "\n" >> $@
-	@printf ";; Local Variables:\n" >> $@
-	@printf ";; version-control: never\n" >> $@
-	@printf ";; no-byte-compile: t\n" >> $@
-	@printf ";; no-update-autoloads: t\n" >> $@
-	@printf ";; End:\n" >> $@
-	@printf ";;; $@ ends here\n" >> $@
-	@$(BATCH) --eval "(progn\
+	@printf "%s" "$$LOADDEFS_TMPL" > $@
+	@$(EMACS) -Q --batch --eval "(progn\
 	(fset 'message (lambda (&rest _)))\
 	(setq make-backup-files nil)\
 	(setq vc-handled-backends nil)\
 	(setq default-directory (file-truename default-directory))\
-	(setq generated-autoload-file (expand-file-name \"magit-autoloads.el\"))\
+	(setq generated-autoload-file (expand-file-name \"$@\"))\
 	(setq find-file-visit-truename t)\
-	(update-directory-autoloads default-directory))"
+	(update-directory-autoloads default-directory)))"
+
+$(PKG)-version.el:
+	@printf "Generating $@\n"
+	@printf "%s" "$$LOADDEFS_TMPL" > $@
+
+# Install ############################################################
 
 install: lisp
 	@$(MKDIR) $(DESTDIR)$(lispdir)
 	$(CP) $(ELS) magit-autoloads.el magit-version.el $(ELCS) $(DESTDIR)$(lispdir)
 
+# Clean ##############################################################
+
 clean:
 	@printf "Cleaning lisp/*...\n"
 	@$(RM) *.elc $(ELGS)
+
+# Templates ##########################################################
+
+define LOADDEFS_TMPL
+;;; $(PKG)-autoloads.el --- automatically extracted autoloads
+;;
+;;; Code:
+(add-to-list 'load-path (directory-file-name \
+(or (file-name-directory #$$) (car load-path))))
+
+;; Local Variables:
+;; version-control: never
+;; no-byte-compile: t
+;; no-update-autoloads: t
+;; End:
+;;; $(PKG)-autoloads.el ends here
+endef
+export LOADDEFS_TMPL
+#'
+
+define VERSIONLIB_TMPL
+;;; $(PKG)-version.el --- the Magit version you are using
+
+(setq $(PKG)-version \""$(VERSION)"\")
+
+(provide '$(PKG)-version)
+
+;; Local Variables:\n
+;; version-control: never\n
+;; no-byte-compile: t\n
+;; no-update-autoloads: t\n
+;; coding: utf-8\n
+;; End:\n
+;;; $(PKG)-version.el ends here
+endef
+export VERSIONLIB_TMPL
+#'
+

@@ -51,7 +51,23 @@ install-info: info
 
 clean:
 	@printf "Cleaning Documentation/*...\n"
-	@$(RM) $(INFOPAGES) dir
+	@$(RMDIR) dir $(INFOPAGES) $(HTMLFILES) $(HTMLDIRS) $(PDFFILES)
+
+# Release management #################################################
+
+texi: $(TEXIPAGES)
+
+%.texi: %.org
+	@printf "Generating $@\n"
+	@$(EMACS) -Q --batch $(OFLAGS) \
+	-l ox-texinfo+.el $< -f org-texinfo+export-to-texinfo
+	@printf "\n" >> $@
+	@sed -i -e '/^@title /a@subtitle for version $(VERSION)' $@
+	@rm -f $@~
+
+stats:
+	@printf "Generating statistics\n"
+	@gitstats -c style=/assets/stats.css -c max_authors=64 . $(statsdir)
 
 # Release management #################################################
 
@@ -73,6 +89,7 @@ stats:
 	@gitstats -c style=/assets/stats.css -c max_authors=64 . $(statsdir)
 
 authors: AUTHORS.md
+
 AUTHORS.md:
 	@printf "Generating AUTHORS.md..."
 	@test -e $(TOP).git \
@@ -93,8 +110,26 @@ publish-stats: stats
 	@printf "Uploading statistics...\n"
 	@aws s3 sync $(statsdir)      $(PUBLISH_BUCKET)/stats/
 
-preview-manuals: html html-dir pdf
-	@printf "Uploading manuals...\n"
+preview-snapshot: html html-dir pdf
+	@printf "Uploading snapshot manual...\n"
+	@aws s3 sync magit            $(PREVIEW_BUCKET)/manual/master/magit/
+	@aws s3 cp   magit.html       $(PREVIEW_BUCKET)/manual/master/
+	@aws s3 cp   magit.pdf        $(PREVIEW_BUCKET)/manual/master/
+	@aws s3 sync magit-popup      $(PREVIEW_BUCKET)/manual/master/magit-popup/
+	@aws s3 cp   magit-popup.html $(PREVIEW_BUCKET)/manual/master/
+	@aws s3 cp   magit-popup.pdf  $(PREVIEW_BUCKET)/manual/master/
+
+publish-snapshot: html html-dir pdf
+	@printf "Uploading snapshot manual...\n"
+	@aws s3 sync magit            $(PUBLISH_BUCKET)/manual/master/magit/
+	@aws s3 cp   magit.html       $(PUBLISH_BUCKET)/manual/master/
+	@aws s3 cp   magit.pdf        $(PUBLISH_BUCKET)/manual/master/
+	@aws s3 sync magit-popup      $(PUBLISH_BUCKET)/manual/master/magit-popup/
+	@aws s3 cp   magit-popup.html $(PUBLISH_BUCKET)/manual/master/
+	@aws s3 cp   magit-popup.pdf  $(PUBLISH_BUCKET)/manual/master/
+
+preview-release: html html-dir pdf
+	@printf "Uploading release manuals...\n"
 	@aws s3 sync magit            $(PREVIEW_BUCKET)/manual/magit/
 	@aws s3 cp   magit.html       $(PREVIEW_BUCKET)/manual/
 	@aws s3 cp   magit.pdf        $(PREVIEW_BUCKET)/manual/
@@ -102,16 +137,14 @@ preview-manuals: html html-dir pdf
 	@aws s3 cp   magit-popup.html $(PREVIEW_BUCKET)/manual/
 	@aws s3 cp   magit-popup.pdf  $(PREVIEW_BUCKET)/manual/
 
-publish-manuals: html html-dir pdf
-	@printf "Uploading manuals...\n"
+publish-release: html html-dir pdf
+	@printf "Uploading release manuals...\n"
 	@aws s3 sync magit            $(PUBLISH_BUCKET)/manual/magit/
 	@aws s3 cp   magit.html       $(PUBLISH_BUCKET)/manual/
 	@aws s3 cp   magit.pdf        $(PUBLISH_BUCKET)/manual/
 	@aws s3 sync magit-popup      $(PUBLISH_BUCKET)/manual/magit-popup/
 	@aws s3 cp   magit-popup.html $(PUBLISH_BUCKET)/manual/
 	@aws s3 cp   magit-popup.pdf  $(PUBLISH_BUCKET)/manual/
-
-# Templates ##########################################################
 
 define AUTHORS_HEADER
 Authors

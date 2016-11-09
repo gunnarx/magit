@@ -1,29 +1,43 @@
 TOP := $(dir $(lastword $(MAKEFILE_LIST)))
 
+# User options #######################################################
+#
+# You can override these settings in "config.mk" or on the command
+# line.
+#
+# You might also want to set LOAD_PATH.  If you do, then it must
+# contain "-L .".
+#
+# If you don't do so then the default is set in the "Load-Path"
+# section below.  The default assumes that all dependencies are
+# installed either at "../<DEPENDENCY>", or when using package.el
+# at "ELPA_DIR/<DEPENDENCY>-<HIGHEST-VERSION>".
+
 PREFIX   ?= /usr/local
 sharedir ?= $(PREFIX)/share
 lispdir  ?= $(sharedir)/emacs/site-lisp/magit
 infodir  ?= $(sharedir)/info
 docdir   ?= $(sharedir)/doc/magit
-statsdir ?= ./stats
+statsdir ?= Documentation/stats
 
-# You might also want to set LOAD_PATH.  If you do, then it must
-# contain "-L .".  If you don't then the default is set, assuming
-# that all dependencies are installed either at ../<DEPENDENCY>,
-# or using package.el at ELPA_DIR/<DEPENDENCY>-<HIGHEST-VERSION>.
+CP       ?= install -p -m 644
+MKDIR    ?= install -p -m 755 -d
+RMDIR    ?= rm -rf
+TAR      ?= tar
+SED      ?= sed
 
-CP    ?= install -p -m 644
-MKDIR ?= install -p -m 755 -d
-RMDIR ?= rm -rf
-TAR   ?= tar
-SED   ?= sed
+EMACSBIN ?= emacs
+BATCH     = $(EMACSBIN) -Q --batch $(LOAD_PATH)
 
 INSTALL_INFO     ?= $(shell command -v ginstall-info || printf install-info)
 MAKEINFO         ?= makeinfo
-MANUAL_HTML_ARGS ?= --css-ref /assets/page.css
+MANUAL_HTML_ARGS ?= --css-ref /the.css
 
 DOC_LOAD_PATH    ?= -L ../../dash -L ../../org/lisp -L ../../ox-texinfo+
 
+# Files ##############################################################
+
+PKG              = magit
 PACKAGES         = magit magit-popup git-commit
 PACKAGE_VERSIONS = $(addsuffix -$(VERSION),$(PACKAGES))
 
@@ -62,7 +76,15 @@ ELCS = $(ELS:.el=.elc)
 ELMS = magit.el $(filter-out $(addsuffix .el,$(PACKAGES)),$(ELS))
 ELGS = magit-autoloads.el magit-version.el
 
-EMACS_VERSION = 24.4
+# Versions ###########################################################
+
+VERSION := $(shell \
+  test -e $(TOP).git\
+  && git describe --tags --dirty 2> /dev/null\
+  || $(BATCH) --eval "(progn\
+  (fset 'message (lambda (&rest _)))\
+  (load-file \"magit-version.el\")\
+  (princ magit-version))")
 
 MAGIT_VERSION       = 2.8
 ASYNC_VERSION       = 1.9
@@ -77,7 +99,15 @@ WITH_EDITOR_MELPA_SNAPSHOT = 20160929.734
 GIT_COMMIT_MELPA_SNAPSHOT  = 20160929.801
 MAGIT_POPUP_MELPA_SNAPSHOT = 20160821.1338
 
-EMACSBIN ?= emacs
+EMACS_VERSION = 24.4
+
+EMACSOLD := $(shell $(BATCH) --eval \
+  "(and (version< emacs-version \"$(EMACS_VERSION)\") (princ \"true\"))")
+ifeq "$(EMACSOLD)" "true"
+  $(error At least version $(EMACS_VERSION) of Emacs is required)
+endif
+
+# Load-Path ##########################################################
 
 ifndef LOAD_PATH
 
@@ -113,19 +143,3 @@ else
 endif
 
 endif # ifndef LOAD_PATH
-
-BATCH = $(EMACSBIN) -batch -Q $(LOAD_PATH)
-
-EMACSOLD := $(shell $(BATCH) --eval \
-  "(and (version< emacs-version \"$(EMACS_VERSION)\") (princ \"true\"))")
-ifeq "$(EMACSOLD)" "true"
-  $(error At least version $(EMACS_VERSION) of Emacs is required)
-endif
-
-VERSION := $(shell \
-  test -e $(TOP).git\
-  && git describe --tags --dirty 2> /dev/null\
-  || $(BATCH) --eval "(progn\
-  (fset 'message (lambda (&rest _)))\
-  (load-file \"magit-version.el\")\
-  (princ magit-version))")
